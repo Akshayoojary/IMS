@@ -10,7 +10,12 @@ class DocumentPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Documents'),
+        title: const Text(
+          'Documents',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.deepOrangeAccent, // Match the color of the "Document" card
+        elevation: 0,
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('documents').snapshots(),
@@ -29,23 +34,43 @@ class DocumentPage extends StatelessWidget {
             itemCount: documents.length,
             itemBuilder: (context, index) {
               final document = documents[index];
-              return InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => DocumentDetailedPage(
-                        title: document['title'],
-                        url: document['url'],
-                        description: document['description'],
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Card(
+                  color: Color(0xFFFFF3E0), // Light orange matching the "Document" card color
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: ListTile(
+                    title: Text(
+                      document['title'],
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        color: Colors.black,
                       ),
                     ),
-                  );
-                },
-                child: ListTile(
-                  title: Text(document['title']),
-                  subtitle: Text(document['url']),
-                  trailing: const Icon(Icons.open_in_new),
+                    subtitle: Text(
+                      document['url'],
+                      style: const TextStyle(color: Colors.black87),
+                    ),
+                    trailing: const Icon(
+                      Icons.open_in_new,
+                      color: Colors.deepOrangeAccent,
+                      size: 20,
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => DocumentDetailedPage(
+                            title: document['title'],
+                            url: document['url'],
+                            description: document['description'],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               );
             },

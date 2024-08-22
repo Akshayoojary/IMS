@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-//import 'package:ims/Admin-pages/admin_page.dart';
-//import 'package:ims/main-pages/home-page.dart';
+import 'package:ims/Admin-pages/admin_page.dart';
+import 'package:ims/main-pages/home-page.dart';
 import 'package:ims/pages/auth_page.dart';
 import 'firebase_options.dart';
-//import 'package:ims/pages/auth_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,11 +18,14 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: AuthPage() ,
-  
-    
+      home: AuthPage(), // Authentication logic to choose between login/register
+      routes: {
+        '/admin_home': (context) => AdminDashboard(),
+        '/user_home': (context) => HomePage(),
+        // You can add more routes here if needed
+      },
     );
   }
 }

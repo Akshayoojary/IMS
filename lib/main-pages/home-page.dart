@@ -14,8 +14,42 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
+  bool _isTextVisible = false;
+
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Initialize the animation controller and animation
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+
+    _animation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    );
+
+    // Start the animation and set text visibility to true after a short delay
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _animationController.forward();
+      setState(() {
+        _isTextVisible = true;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -34,30 +68,41 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final List<Widget> pages = [
       Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'Welcome to Nicozn Technologies',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const InternDashboard()),
-                );
-              },
-              icon: const Icon(Icons.arrow_forward),
-              label: const Text('Get Started'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                textStyle: const TextStyle(fontSize: 18),
+        child: FadeTransition(
+          opacity: _animation,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedOpacity(
+                opacity: _isTextVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 800),
+                child: const Text(
+                  'Welcome to Nicozn Technologies',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const InternDashboard()),
+                  );
+                },
+                icon: const Icon(Icons.arrow_forward),
+                label: const Text('Get Started'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                  textStyle: const TextStyle(fontSize: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  elevation: 8,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       const AvailJobsPage(), // Jobs Page
@@ -125,6 +170,20 @@ class _HomePageState extends State<HomePage> {
       body: IndexedStack(
         index: _selectedIndex,
         children: pages,
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const InternDashboard()),
+          );
+        },
+        backgroundColor: Colors.blue, // Color matching your app theme
+        child: const Icon(Icons.dashboard, color: Colors.white), // Icon for the FAB
+        elevation: 8, // Added elevation for a more modern look
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15), // Rounded edges for a modern look
+        ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[

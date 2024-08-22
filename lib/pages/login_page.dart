@@ -46,33 +46,39 @@ class _LoginPageState extends State<LoginPage> {
     showLoadingDialog();
 
     try {
+      // Sign in the user with email and password
       UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: emailController.text,
         password: passwordController.text,
       );
 
-      // Check if the user document exists in Firestore
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).get();
+      // Fetch user role from Firestore
+      final userDoc = await FirebaseFirestore.instance
+          .collection('user-log')
+          .doc(userCredential.user!.uid)
+          .get();
+
       if (!userDoc.exists) {
-        // Handle the case where the user document doesn't exist (should not happen if registration is properly implemented)
         showErrorDialog('User Not Found', 'User document not found. Please register.');
         FirebaseAuth.instance.signOut();
       } else {
-        // Navigate to home page based on user role
+        // Get the user role and navigate accordingly
         final userRole = userDoc['role'];
         if (mounted) {
-          Navigator.pop(context);  // Dismiss loading dialog
-          // Example of routing based on role
+          Navigator.pop(context); // Dismiss the loading dialog
           if (userRole == 'admin') {
-            Navigator.pushNamed(context, '/admin_home');
+            Navigator.pushReplacementNamed(context, '/admin_home');
+          } else if (userRole == 'user') {
+            Navigator.pushReplacementNamed(context, '/user_home');
           } else {
-            Navigator.pushNamed(context, '/user_home');
+            showErrorDialog('Login Failed', 'Undefined role. Please contact support.');
+            FirebaseAuth.instance.signOut();
           }
         }
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
-        Navigator.pop(context);  // Dismiss loading dialog
+        Navigator.pop(context); // Dismiss loading dialog
         showErrorDialog('Login Failed', e.message ?? 'An error occurred while logging in. Please try again.');
       }
     }

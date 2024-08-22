@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:ims/components/my_button.dart';
 import 'package:ims/components/my_textfield.dart';
 import 'package:email_validator/email_validator.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RegisterPage extends StatefulWidget {
   final Function()? onTap;
@@ -86,16 +87,26 @@ class _RegisterPageState extends State<RegisterPage> {
     }
 
     try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      // Register the user
+      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: emailController.text,
         password: passwordController.text,
       );
+
+      // Add the user data to Firestore
+      await FirebaseFirestore.instance.collection('user-log').doc(userCredential.user!.uid).set({
+        'email': emailController.text,
+        'role': 'user', // You can adjust this to be dynamic or hardcoded for now
+      });
+
       if (_isMounted) {
-        Navigator.pop(context);
+        Navigator.pop(context); // Dismiss loading dialog
+        showRegistrationSuccessMessage(); // Notify the user
+        widget.onTap!(); // Navigate to login page
       }
     } on FirebaseAuthException catch (e) {
       if (_isMounted) {
-        Navigator.pop(context);
+        Navigator.pop(context); // Dismiss loading dialog
         showRegistrationErrorMessage(e.message ?? 'An error occurred while registering.');
       }
     }
@@ -168,6 +179,26 @@ class _RegisterPageState extends State<RegisterPage> {
         return AlertDialog(
           title: const Text('Registration Failed'),
           content: const Text('Passwords do not match. Please try again.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void showRegistrationSuccessMessage() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Registration Successful'),
+          content: const Text('You have registered successfully. Please log in.'),
           actions: [
             TextButton(
               onPressed: () {
