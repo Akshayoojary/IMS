@@ -22,16 +22,17 @@ Navigate to the Project Directory
 
 ```bash
 cd ims
-Install Dependencies
 ```
+Install Dependencies
 ```bash
 flutter pub get
-Run the Project On Emulator/Simulator
 ```
+Run the Project On Emulator/Simulator
 ```bash
 flutter run
-On Physical Device
 ```
+On Physical Device
+
 Ensure your device is connected and then:
 ```bash
 flutter run
