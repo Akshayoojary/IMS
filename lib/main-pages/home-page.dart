@@ -87,7 +87,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const InternDashboard()),
+                    MaterialPageRoute(builder: (context) => const AvilInternshipPage()),
                   );
                 },
                 icon: const Icon(Icons.arrow_forward),

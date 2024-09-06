@@ -6,21 +6,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 class AttendancePage extends StatefulWidget {
-  const AttendancePage({super.key});
+  const AttendancePage({Key? key}) : super(key: key);
 
   @override
   _AttendancePageState createState() => _AttendancePageState();
 }
 
 class _AttendancePageState extends State<AttendancePage> {
-  final DateTime _firstDay = DateTime.now().subtract(Duration(days: DateTime.now().day - 1));
-  final DateTime _lastDay = DateTime.now().add(Duration(days: DateTime.now().month == 12 ? 31 - DateTime.now().day : 30 - DateTime.now().day));
+  final DateTime _firstDay = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  late DateTime _lastDay;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
-  final TextEditingController _leaveReasonController = TextEditingController();
-  DateTime? _leaveStartDate;
-  DateTime? _leaveEndDate;
   List<DateTime> _attendanceDays = [];
 
   User? _currentUser;
@@ -29,250 +26,199 @@ class _AttendancePageState extends State<AttendancePage> {
   void initState() {
     super.initState();
     _currentUser = FirebaseAuth.instance.currentUser;
+    _lastDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
     _loadAttendanceData();
-  }
-
-  @override
-  void dispose() {
-    _leaveReasonController.dispose();
-    super.dispose();
   }
 
   void _loadAttendanceData() async {
     if (_currentUser == null) return;
 
-    FirebaseFirestore.instance
-        .collection('attendance')
-        .where('userId', isEqualTo: _currentUser!.uid)
-        .where('date', isGreaterThanOrEqualTo: _firstDay)
-        .where('date', isLessThanOrEqualTo: _lastDay)
-        .snapshots()
-        .listen((snapshot) {
-      setState(() {
-        _attendanceDays = snapshot.docs.map((doc) {
-          Timestamp timestamp = doc['date'];
-          return timestamp.toDate();
-        }).toList();
-      });
-    });
-  }
-
-  void _applyForLeave() {
-    if (_leaveStartDate == null || _leaveEndDate == null || _leaveReasonController.text.isEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text('Leave Application Failed'),
-            content: const Text('Please fill in all fields.'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text('OK'),
-              ),
-            ],
-          );
-        },
-      );
-      return;
-    }
-
-    FirebaseFirestore.instance.collection('leave_applications').add({
-      'userId': _currentUser?.uid,
-      'userName': _currentUser?.displayName,
-      'startDate': _leaveStartDate,
-      'endDate': _leaveEndDate,
-      'reason': _leaveReasonController.text,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Leave Application Successful'),
-          content: const Text('Your leave application has been submitted.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('OK'),
-            ),
-          ],
+    try {
+      FirebaseFirestore.instance
+          .collection('attendance')
+          .where('userId', isEqualTo: _currentUser!.uid)
+          .snapshots()
+          .listen((snapshot) {
+        setState(() {
+          _attendanceDays = snapshot.docs.where((doc) {
+            Timestamp timestamp = doc['date'];
+            DateTime date = timestamp.toDate();
+            return date.isAfter(_firstDay) && date.isBefore(_lastDay.add(Duration(days: 1)));
+          }).map((doc) {
+            Timestamp timestamp = doc['date'];
+            return timestamp.toDate();
+          }).toList();
+        });
+      }, onError: (error) {
+        print("Error loading attendance data: $error");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load attendance data')),
         );
-      },
-    );
+      });
+    } catch (e) {
+      print("Exception in _loadAttendanceData: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An error occurred while loading attendance data')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    int totalDays = DateTime.now().difference(_firstDay).inDays + 1;
-    int attendedDays = _attendanceDays.length;
-    double attendancePercentage = attendedDays / totalDays;
+    final int totalDays = DateTime.now().difference(_firstDay).inDays + 1;
+    final int attendedDays = _attendanceDays.length;
+    final double attendancePercentage = attendedDays / totalDays;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Attendance'),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text('Attendance', style: TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TableCalendar(
-                firstDay: _firstDay,
-                lastDay: _lastDay,
-                focusedDay: _focusedDay,
-                calendarFormat: CalendarFormat.month,
-                selectedDayPredicate: (day) {
-                  return isSameDay(_selectedDay, day);
-                },
-                onDaySelected: (selectedDay, focusedDay) {
-                  setState(() {
-                    _selectedDay = selectedDay;
-                    _focusedDay = focusedDay;
-                  });
-                },
-                onPageChanged: (focusedDay) {
-                  setState(() {
-                    _focusedDay = focusedDay;
-                  });
-                },
-                calendarBuilders: CalendarBuilders(
-                  defaultBuilder: (context, day, focusedDay) {
-                    for (DateTime d in _attendanceDays) {
-                      if (isSameDay(day, d)) {
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.5),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              '${day.day}',
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        );
-                      }
-                    }
-                    return null;
-                  },
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Attendance Summary',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              CircularPercentIndicator(
-                radius: 100.0,
-                lineWidth: 10.0,
-                percent: attendancePercentage,
-                center: Text(
-                  '${(attendancePercentage * 100).toStringAsFixed(1)}%',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                progressColor: Colors.green,
-              ),
-              const SizedBox(height: 20),
+              _buildCalendar(),
+              SizedBox(height: 20),
               Text(
-                'You have attended $attendedDays out of $totalDays days.',
-                style: const TextStyle(fontSize: 16),
+                'Attendance Summary',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 20),
-              const Divider(thickness: 1),
-              const SizedBox(height: 20),
-              const Text(
-                'Apply for Leave',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              SizedBox(height: 20),
+              _buildAttendanceSummary(attendancePercentage, attendedDays, totalDays),
+              SizedBox(height: 20),
+              Divider(thickness: 1),
+              SizedBox(height: 20),
+              Text(
+                'Attendance Records',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _leaveReasonController,
-                decoration: const InputDecoration(
-                  labelText: 'Reason for Leave',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () async {
-                        DateTime? pickedDate = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime.now(),
-                          lastDate: DateTime(2100),
-                        );
-                        if (pickedDate != null) {
-                          setState(() {
-                            _leaveStartDate = pickedDate;
-                          });
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(15),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          _leaveStartDate == null
-                              ? 'Start Date'
-                              : 'Start: ${DateFormat('yyyy-MM-dd').format(_leaveStartDate!)}',
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () async {
-                        DateTime? pickedDate = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime.now(),
-                          lastDate: DateTime(2100),
-                        );
-                        if (pickedDate != null) {
-                          setState(() {
-                            _leaveEndDate = pickedDate;
-                          });
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(15),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          _leaveEndDate == null
-                              ? 'End Date'
-                              : 'End: ${DateFormat('yyyy-MM-dd').format(_leaveEndDate!)}',
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _applyForLeave,
-                child: const Text('Apply for Leave'),
-              ),
+              SizedBox(height: 20),
+              _buildAttendanceRecords(),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCalendar() {
+    return TableCalendar(
+      firstDay: _firstDay,
+      lastDay: _lastDay,
+      focusedDay: _focusedDay,
+      calendarFormat: CalendarFormat.week,
+      selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+      onDaySelected: (selectedDay, focusedDay) {
+        setState(() {
+          _selectedDay = selectedDay;
+          _focusedDay = focusedDay;
+        });
+      },
+      onPageChanged: (focusedDay) {
+        setState(() {
+          _focusedDay = focusedDay;
+        });
+      },
+      calendarStyle: CalendarStyle(
+        selectedDecoration: BoxDecoration(
+          color: Colors.blue.shade200,
+          shape: BoxShape.circle,
+        ),
+        todayDecoration: BoxDecoration(
+          color: Colors.green,
+          shape: BoxShape.circle,
+        ),
+        weekendTextStyle: TextStyle(color: Colors.red),
+      ),
+      headerStyle: HeaderStyle(
+        formatButtonVisible: false,
+        titleCentered: true,
+        titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        leftChevronIcon: Icon(Icons.chevron_left, color: Colors.black),
+        rightChevronIcon: Icon(Icons.chevron_right, color: Colors.black),
+      ),
+    );
+  }
+
+  Widget _buildAttendanceSummary(double percentage, int attended, int total) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularPercentIndicator(
+            radius: 80.0,
+            lineWidth: 8.0,
+            percent: percentage,
+            center: Text(
+              '${(percentage * 100).toStringAsFixed(1)}%',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            progressColor: Colors.green,
+            backgroundColor: Colors.grey.shade200,
+          ),
+          SizedBox(height: 20),
+          Text(
+            'You have attended $attended out of $total days.',
+            style: TextStyle(fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttendanceRecords() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('attendance')
+          .where('userId', isEqualTo: _currentUser?.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(child: Text('No attendance records.'));
+        }
+
+        final attendanceDocs = snapshot.data!.docs;
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: NeverScrollableScrollPhysics(),
+          itemCount: attendanceDocs.length,
+          itemBuilder: (context, index) {
+            final attendanceData = attendanceDocs[index].data() as Map<String, dynamic>;
+            final status = attendanceData['status'] as String;
+            final date = (attendanceData['date'] as Timestamp).toDate();
+
+            return ListTile(
+              title: Text('Date: ${DateFormat('yyyy-MM-dd').format(date)}'),
+              trailing: Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: status.toLowerCase() == 'present' ? Colors.green : Colors.red,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  status.toUpperCase(),
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
