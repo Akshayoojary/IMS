@@ -50,96 +50,99 @@ class _InternshipDetailPageState extends State<InternshipDetailPage> {
     }
   }
 
-Future<void> _applyForInternship(BuildContext context) async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) {
+  Future<void> _applyForInternship(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to apply.')),
+      );
+      return;
+    }
+
+    // Fetch the user's profile from Firestore
+    final userProfile = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+
+    if (!userProfile.exists) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User profile not found.')),
+      );
+      return;
+    }
+
+    // Retrieve user details
+    final userName = userProfile.data()?['name'] ?? 'Unknown';
+    final resumeUrl = userProfile.data()?['resumeUrl'] ?? '';
+
+    if (resumeUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No resume URL found in user profile.')),
+      );
+      return;
+    }
+
+    // Add the application to the Firestore collection
+    final applicationRef = await FirebaseFirestore.instance.collection('internship_applications').add({
+      'userId': user.uid,
+      'userName': userName,
+      'userEmail': user.email,
+      'internshipTitle': widget.title,
+      'internshipDescription': widget.description,
+      'internshipType': widget.type,
+      'internshipLocation': widget.location,
+      'resumeUrl': resumeUrl, // Add resume URL fetched from the user profile
+      'status': 'applied',
+      'appliedAt': Timestamp.now(),
+    });
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('You must be logged in to apply.')),
+      const SnackBar(content: Text('Application submitted successfully.')),
     );
-    return;
-  }
 
-  final userProfile = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    setState(() {
+      _hasApplied = true;
+      _applicationStatus = 'applied';
+    });
 
-  if (!userProfile.exists) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('User profile not found.')),
-    );
-    return;
-  }
-
-  // Debug output
-  print('Fetched user profile: ${userProfile.data()}');
-  print('User profile name: ${userProfile['name']}');
-
-  // Ensure `name` field exists and is correctly retrieved
-  final userName = userProfile.data()?['name'] ?? 'Unknown';
-
-  // Add application
-  final applicationRef = await FirebaseFirestore.instance.collection('internship_applications').add({
-    'userId': user.uid,
-    'userName': userName,
-    'userEmail': user.email,
-    'internshipTitle': widget.title,
-    'internshipDescription': widget.description,
-    'internshipType': widget.type,
-    'internshipLocation': widget.location,
-    'status': 'applied',
-    'appliedAt': Timestamp.now(),
-  });
-
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('Application submitted successfully.')),
-  );
-
-  setState(() {
-    _hasApplied = true;
-    _applicationStatus = 'applied';
-  });
-
-  // Listen for status update to 'accepted'
-  final applicationDoc = FirebaseFirestore.instance.collection('internship_applications').doc(applicationRef.id);
-  applicationDoc.snapshots().listen((snapshot) async {
-    if (snapshot.exists) {
-      final status = snapshot.data()?['status'];
-      if (status == 'accepted') {
-        final enrolledUserData = {
-          'userId': user.uid,
-          'userName': userName, // Ensure correct name
-          'userEmail': user.email,
-          'internshipTitle': widget.title,
-          'internshipDescription': widget.description,
-          'internshipType': widget.type,
-          'internshipLocation': widget.location,
-          'status': 'enrolled',
-          'enrolledAt': Timestamp.now(),
-        };
-
-        try {
-          // Store enrolled user data in 'enrolled_users' collection
-          await FirebaseFirestore.instance.collection('enrolled_users').add(enrolledUserData);
-          print('User added to enrolled_users collection with data: $enrolledUserData');
-
-          // Store attendance record in 'attendance' collection
-          final attendanceData = {
+    // Listen for updates to the application status
+    final applicationDoc = FirebaseFirestore.instance.collection('internship_applications').doc(applicationRef.id);
+    applicationDoc.snapshots().listen((snapshot) async {
+      if (snapshot.exists) {
+        final status = snapshot.data()?['status'];
+        if (status == 'accepted') {
+          final enrolledUserData = {
             'userId': user.uid,
-            'name': userName, // Ensure correct name
+            'userName': userName,
             'userEmail': user.email,
             'internshipTitle': widget.title,
-            'status': 'accepted',
-            'timestamp': Timestamp.now(),
+            'internshipDescription': widget.description,
+            'internshipType': widget.type,
+            'internshipLocation': widget.location,
+            'status': 'enrolled',
+            'enrolledAt': Timestamp.now(),
           };
 
-          await FirebaseFirestore.instance.collection('attendance').add(attendanceData);
-          print('Attendance data added to attendance collection with data: $attendanceData');
-        } catch (e) {
-          print('Error adding user to enrolled_users or attendance: $e');
+          try {
+            // Add the enrolled user to the 'enrolled_users' collection
+            await FirebaseFirestore.instance.collection('enrolled_users').add(enrolledUserData);
+
+            // Add the attendance record to the 'attendance' collection
+            final attendanceData = {
+              'userId': user.uid,
+              'name': userName,
+              'userEmail': user.email,
+              'internshipTitle': widget.title,
+              'status': 'accepted',
+              'timestamp': Timestamp.now(),
+            };
+
+            await FirebaseFirestore.instance.collection('attendance').add(attendanceData);
+          } catch (e) {
+            print('Error adding user to enrolled_users or attendance: $e');
+          }
         }
       }
-    }
-  });
-}
-
+    });
+  }
 
   Color _getStatusColor() {
     switch (_applicationStatus) {

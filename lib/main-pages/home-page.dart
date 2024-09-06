@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ims/main-pages/profil_page.dart';
 import 'package:ims/main-pages/avil_internship.dart';
-import 'package:ims/main-pages/avail_jobs.dart'; // Updated import for jobs page
+import 'package:ims/main-pages/avail_jobs.dart';
 import 'package:ims/components/top_app_bar.dart';
 import 'package:ims/pages/auth_page.dart';
 import 'package:ims/main-pages/intern_dashboard.dart';
@@ -17,14 +18,19 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
   bool _isTextVisible = false;
+  bool _isInternshipAccepted = false; // For internship status check
 
   late AnimationController _animationController;
   late Animation<double> _animation;
+  final user = FirebaseAuth.instance.currentUser;
 
   @override
   void initState() {
     super.initState();
-    
+
+    // Fetch internship status on startup
+    _fetchInternshipStatus();
+
     // Initialize the animation controller and animation
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 500),
@@ -43,6 +49,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         _isTextVisible = true;
       });
     });
+  }
+
+  // Fetch the internship status from Firestore
+  Future<void> _fetchInternshipStatus() async {
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance
+          .collection('internship_applications')
+          .doc(user!.uid) // Assuming each user has a document with their UID
+          .get();
+
+      if (doc.exists) {
+        setState(() {
+          _isInternshipAccepted = doc.data()?['status'] == 'accepted';
+        });
+      }
+    }
   }
 
   @override
@@ -85,10 +107,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const InternDashboard()),
-                  );
+                  // Check if internship is accepted, otherwise redirect to internship page
+                  if (_isInternshipAccepted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const InternDashboard()),
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AvilInternshipPage()),
+                    );
+                  }
                 },
                 icon: const Icon(Icons.arrow_forward),
                 label: const Text('Get Started'),
@@ -171,20 +201,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         index: _selectedIndex,
         children: pages,
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const InternDashboard()),
-          );
-        },
-        backgroundColor: Colors.blue, // Color matching your app theme
-        child: const Icon(Icons.dashboard, color: Colors.white), // Icon for the FAB
-        elevation: 8, // Added elevation for a more modern look
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15), // Rounded edges for a modern look
-        ),
-      ),
+      floatingActionButton: _isInternshipAccepted
+          ? FloatingActionButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const InternDashboard()),
+                );
+              },
+              backgroundColor: Colors.blue, // Color matching your app theme
+              child: const Icon(Icons.dashboard, color: Colors.white), // Icon for the FAB
+              elevation: 8, // Added elevation for a more modern look
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15), // Rounded edges for a modern look
+              ),
+            )
+          : null, // Hide FAB if internship is not accepted
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
