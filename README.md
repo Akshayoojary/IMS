@@ -1,16 +1,20 @@
-# ims
+# IMS - Internship Management System
 
-A new Flutter project.
+IMS is a Flutter application designed to manage and track internship-related activities. This project includes features for managing internships, tracking documents, resources, tasks, and attendance.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+To get started with the IMS Flutter project, follow these steps:
 
-A few resources to get you started if this is your first Flutter project:
+### Prerequisites
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Make sure you have Flutter installed on your system. If not, follow the [Flutter installation guide](https://docs.flutter.dev/get-started/install).
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+You will also need an active Firebase project. Follow the [Firebase setup guide](https://firebase.google.com/docs/flutter/setup) to create a Firebase project and add the necessary configuration files.
+
+### Installation
+
+1. **Clone the Repository**
+
+   ```bash
+   git clone https://github.com/yourusername/ims.git
