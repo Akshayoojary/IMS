@@ -18,3 +18,7 @@ You will also need an active Firebase project. Follow the [Firebase setup guide]
 
    ```bash
    git clone https://github.com/yourusername/ims.git
+cd ims
+flutter pub get
+flutter run
+
