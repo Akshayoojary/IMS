@@ -17,3 +17,27 @@ Follow these simple steps to get started with IMS:
 
    ```bash
    git clone https://github.com/yourusername/ims.git
+Navigate to the Project Directory
+
+bash
+Copy code
+cd ims
+Install Dependencies
+
+bash
+Copy code
+flutter pub get
+Run the Project
+
+On Emulator/Simulator
+
+bash
+Copy code
+flutter run
+On Physical Device
+
+Ensure your device is connected and then:
+
+bash
+Copy code
+flutter run
