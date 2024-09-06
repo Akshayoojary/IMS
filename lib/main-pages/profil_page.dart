@@ -68,7 +68,7 @@ class _ProfilePageState extends State<ProfilePage> {
           _addressController.text = userProfile['address'] ?? '';
           _skillsController.text = userProfile['skills'] ?? '';
           _experienceController.text = userProfile['experience'] ?? '';
-          _emailController.text = user.email ?? '';
+          _emailController.text = user.email ?? ''; // Set email controller with the user’s email
           _profileImageUrl = userProfile['profileImageUrl'];
         });
       }
@@ -228,7 +228,7 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 20),
               TextFormField(
                 controller: _emailController,
-                enabled: false,
+                enabled: false, // Email field is read-only
                 decoration: InputDecoration(
                   labelText: 'Email',
                   border: OutlineInputBorder(
@@ -305,4 +305,3 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 }
- 

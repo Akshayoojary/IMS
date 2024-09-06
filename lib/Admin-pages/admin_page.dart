@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:ims/Admin-pages/Pages/AttendanceAdminPage.dart';
 import 'package:ims/Admin-pages/Pages/documentadmin.dart';
@@ -39,15 +40,23 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+  void _handleLogout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      Navigator.pushReplacementNamed(context, '/login'); // Navigate to the login page or another page
+    } catch (e) {
+      // Handle any errors during sign-out
+      print('Error signing out: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: TopAppBar(
         title: 'Admin Dashboard',
         isLoggedIn: true, // Assuming the user is logged in
-        onLogout: () {
-          // Handle logout logic
-        },
+        onLogout: _handleLogout,
       ),
       body: Padding(
         padding: const EdgeInsets.all(8.0), // Reduced padding to use more space
@@ -60,7 +69,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               icon: Icons.check_circle,
               label: 'Attendance',
               color: Colors.blue,
-              onTap: () => _navigateToPage(const AttendanceAdminPage()),
+              onTap: () => _navigateToPage(AttendanceAdminPage()),
             ),
             DashboardOption(
               icon: Icons.task,

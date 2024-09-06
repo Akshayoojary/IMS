@@ -63,7 +63,8 @@ class _LoginPageState extends State<LoginPage> {
         FirebaseAuth.instance.signOut();
       } else {
         // Get the user role and navigate accordingly
-        final userRole = userDoc['role'];
+        final userRole = userDoc.data()?['role'];
+        print('User role: $userRole'); // Debugging output
         if (mounted) {
           Navigator.pop(context); // Dismiss the loading dialog
           if (userRole == 'admin') {

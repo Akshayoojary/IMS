@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 
 class AttendancePage extends StatefulWidget {
   const AttendancePage({super.key});
@@ -11,8 +13,8 @@ class AttendancePage extends StatefulWidget {
 }
 
 class _AttendancePageState extends State<AttendancePage> {
-  final DateTime _firstDay = DateTime.utc(2023, 1, 1);
-  final DateTime _lastDay = DateTime.utc(2024, 12, 31);  // Updated to include 2024
+  final DateTime _firstDay = DateTime.now().subtract(Duration(days: DateTime.now().day - 1));
+  final DateTime _lastDay = DateTime.now().add(Duration(days: DateTime.now().month == 12 ? 31 - DateTime.now().day : 30 - DateTime.now().day));
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
@@ -21,9 +23,12 @@ class _AttendancePageState extends State<AttendancePage> {
   DateTime? _leaveEndDate;
   List<DateTime> _attendanceDays = [];
 
+  User? _currentUser;
+
   @override
   void initState() {
     super.initState();
+    _currentUser = FirebaseAuth.instance.currentUser;
     _loadAttendanceData();
   }
 
@@ -34,8 +39,13 @@ class _AttendancePageState extends State<AttendancePage> {
   }
 
   void _loadAttendanceData() async {
+    if (_currentUser == null) return;
+
     FirebaseFirestore.instance
         .collection('attendance')
+        .where('userId', isEqualTo: _currentUser!.uid)
+        .where('date', isGreaterThanOrEqualTo: _firstDay)
+        .where('date', isLessThanOrEqualTo: _lastDay)
         .snapshots()
         .listen((snapshot) {
       setState(() {
@@ -70,8 +80,10 @@ class _AttendancePageState extends State<AttendancePage> {
     }
 
     FirebaseFirestore.instance.collection('leave_applications').add({
-      'start_date': _leaveStartDate,
-      'end_date': _leaveEndDate,
+      'userId': _currentUser?.uid,
+      'userName': _currentUser?.displayName,
+      'startDate': _leaveStartDate,
+      'endDate': _leaveEndDate,
       'reason': _leaveReasonController.text,
       'timestamp': FieldValue.serverTimestamp(),
     });
@@ -215,7 +227,7 @@ class _AttendancePageState extends State<AttendancePage> {
                         child: Text(
                           _leaveStartDate == null
                               ? 'Start Date'
-                              : 'Start: ${_leaveStartDate!.toLocal()}'.split(' ')[0],
+                              : 'Start: ${DateFormat('yyyy-MM-dd').format(_leaveStartDate!)}',
                         ),
                       ),
                     ),
@@ -245,7 +257,7 @@ class _AttendancePageState extends State<AttendancePage> {
                         child: Text(
                           _leaveEndDate == null
                               ? 'End Date'
-                              : 'End: ${_leaveEndDate!.toLocal()}'.split(' ')[0],
+                              : 'End: ${DateFormat('yyyy-MM-dd').format(_leaveEndDate!)}',
                         ),
                       ),
                     ),

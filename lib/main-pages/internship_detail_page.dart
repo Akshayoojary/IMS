@@ -50,49 +50,96 @@ class _InternshipDetailPageState extends State<InternshipDetailPage> {
     }
   }
 
-  Future<void> _applyForInternship(BuildContext context) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('You must be logged in to apply.')),
-      );
-      return;
-    }
-
-    final userProfile = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-
-    if (!userProfile.exists) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('User profile not found.')),
-      );
-      return;
-    }
-
-    final applicationData = {
-      'userId': user.uid,
-      'userName': userProfile['name'],
-      'userEmail': user.email,
-      'internshipTitle': widget.title,
-      'internshipDescription': widget.description,
-      'internshipType': widget.type,
-      'internshipLocation': widget.location,
-      'status': 'applied',
-      'appliedAt': Timestamp.now(),
-    };
-
-    await FirebaseFirestore.instance.collection('internship_applications').add(applicationData);
-
+Future<void> _applyForInternship(BuildContext context) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Application submitted successfully.')),
+      const SnackBar(content: Text('You must be logged in to apply.')),
     );
-
-    setState(() {
-      _hasApplied = true;
-      _applicationStatus = 'applied';
-    });
-
-    Navigator.pop(context);
+    return;
   }
+
+  final userProfile = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+
+  if (!userProfile.exists) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('User profile not found.')),
+    );
+    return;
+  }
+
+  // Debug output
+  print('Fetched user profile: ${userProfile.data()}');
+  print('User profile name: ${userProfile['name']}');
+
+  // Ensure `name` field exists and is correctly retrieved
+  final userName = userProfile.data()?['name'] ?? 'Unknown';
+
+  // Add application
+  final applicationRef = await FirebaseFirestore.instance.collection('internship_applications').add({
+    'userId': user.uid,
+    'userName': userName,
+    'userEmail': user.email,
+    'internshipTitle': widget.title,
+    'internshipDescription': widget.description,
+    'internshipType': widget.type,
+    'internshipLocation': widget.location,
+    'status': 'applied',
+    'appliedAt': Timestamp.now(),
+  });
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Application submitted successfully.')),
+  );
+
+  setState(() {
+    _hasApplied = true;
+    _applicationStatus = 'applied';
+  });
+
+  // Listen for status update to 'accepted'
+  final applicationDoc = FirebaseFirestore.instance.collection('internship_applications').doc(applicationRef.id);
+  applicationDoc.snapshots().listen((snapshot) async {
+    if (snapshot.exists) {
+      final status = snapshot.data()?['status'];
+      if (status == 'accepted') {
+        final enrolledUserData = {
+          'userId': user.uid,
+          'userName': userName, // Ensure correct name
+          'userEmail': user.email,
+          'internshipTitle': widget.title,
+          'internshipDescription': widget.description,
+          'internshipType': widget.type,
+          'internshipLocation': widget.location,
+          'status': 'enrolled',
+          'enrolledAt': Timestamp.now(),
+        };
+
+        try {
+          // Store enrolled user data in 'enrolled_users' collection
+          await FirebaseFirestore.instance.collection('enrolled_users').add(enrolledUserData);
+          print('User added to enrolled_users collection with data: $enrolledUserData');
+
+          // Store attendance record in 'attendance' collection
+          final attendanceData = {
+            'userId': user.uid,
+            'name': userName, // Ensure correct name
+            'userEmail': user.email,
+            'internshipTitle': widget.title,
+            'status': 'accepted',
+            'timestamp': Timestamp.now(),
+          };
+
+          await FirebaseFirestore.instance.collection('attendance').add(attendanceData);
+          print('Attendance data added to attendance collection with data: $attendanceData');
+        } catch (e) {
+          print('Error adding user to enrolled_users or attendance: $e');
+        }
+      }
+    }
+  });
+}
+
 
   Color _getStatusColor() {
     switch (_applicationStatus) {
@@ -130,15 +177,15 @@ class _InternshipDetailPageState extends State<InternshipDetailPage> {
           children: [
             Text(
               widget.title,
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             Text(
               widget.description,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16),
+              style: const TextStyle(fontSize: 16),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -146,17 +193,17 @@ class _InternshipDetailPageState extends State<InternshipDetailPage> {
                   label: Text(widget.type),
                   backgroundColor: Colors.blue[100],
                 ),
-                SizedBox(width: 10),
+                const SizedBox(width: 10),
                 Text('Location: ${widget.location}'),
               ],
             ),
-            Spacer(),
+            const Spacer(),
             ElevatedButton(
               onPressed: _hasApplied ? null : () => _applyForInternship(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _hasApplied ? Colors.grey : Colors.blue,
-                minimumSize: Size(double.infinity, 60), // Full width and bigger button
-                textStyle: TextStyle(fontSize: 20),
+                minimumSize: const Size(double.infinity, 60),
+                textStyle: const TextStyle(fontSize: 20),
               ),
               child: Text(_getButtonText()),
             ),

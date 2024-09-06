@@ -20,10 +20,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: AuthPage(), // Authentication logic to choose between login/register
+      home: const AuthPage(), // Authentication logic to choose between login/register
       routes: {
-        '/admin_home': (context) => AdminDashboard(),
-        '/user_home': (context) => HomePage(),
+        '/admin_home': (context) => const AdminDashboard(),
+        '/user_home': (context) => const HomePage(),
         // You can add more routes here if needed
       },
     );

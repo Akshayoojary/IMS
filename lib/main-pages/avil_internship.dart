@@ -3,8 +3,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'internship_detail_page.dart'; // Import the InternshipDetailPage
 
-class AvilInternshipPage extends StatelessWidget {
-  const AvilInternshipPage({Key? key});
+class AvilInternshipPage extends StatefulWidget {
+  const AvilInternshipPage({Key? key}) : super(key: key);
+
+  @override
+  _AvilInternshipPageState createState() => _AvilInternshipPageState();
+}
+
+class _AvilInternshipPageState extends State<AvilInternshipPage> {
+  late Future<List<QueryDocumentSnapshot>> _appliedInternshipsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _appliedInternshipsFuture = _fetchAppliedInternships();
+  }
 
   Future<List<QueryDocumentSnapshot>> _fetchAppliedInternships() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -23,95 +36,105 @@ class AvilInternshipPage extends StatelessWidget {
     return appliedInternshipsSnapshot.docs;
   }
 
+  Future<void> _refreshInternships() async {
+    // Re-fetch the internship data and update the Future
+    setState(() {
+      _appliedInternshipsFuture = _fetchAppliedInternships();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Available Internships'),
+        title: const Text('Available Internships'),
       ),
-      body: FutureBuilder<List<QueryDocumentSnapshot>>(
-        future: _fetchAppliedInternships(),
-        builder: (context, appliedSnapshot) {
-          if (appliedSnapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          }
+      body: RefreshIndicator(
+        onRefresh: _refreshInternships, // Refresh function when pulled down
+        child: FutureBuilder<List<QueryDocumentSnapshot>>(
+          future: _appliedInternshipsFuture,
+          builder: (context, appliedSnapshot) {
+            if (appliedSnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (appliedSnapshot.hasError) {
-            print('Error fetching data: ${appliedSnapshot.error}');
-            return Center(child: Text('Error fetching data: ${appliedSnapshot.error}'));
-          }
+            if (appliedSnapshot.hasError) {
+              print('Error fetching data: ${appliedSnapshot.error}');
+              return Center(child: Text('Error fetching data: ${appliedSnapshot.error}'));
+            }
 
-          final appliedInternships = appliedSnapshot.data ?? [];
+            final appliedInternships = appliedSnapshot.data ?? [];
 
-          return StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('internships').snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return Center(child: CircularProgressIndicator());
-              }
+            return StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('internships').snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-              if (snapshot.hasError) {
-                print('Error fetching data: ${snapshot.error}');
-                return Center(child: Text('Error fetching data: ${snapshot.error}'));
-              }
+                if (snapshot.hasError) {
+                  print('Error fetching data: ${snapshot.error}');
+                  return Center(child: Text('Error fetching data: ${snapshot.error}'));
+                }
 
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return Center(child: Text('No internships available.'));
-              }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text('No internships available.'));
+                }
 
-              final internships = snapshot.data!.docs;
+                final internships = snapshot.data!.docs;
 
-              final appliedInternshipTitles = appliedInternships.map((doc) => doc['internshipTitle']).toSet();
-              final appliedInternshipList = internships.where((internship) {
-                final title = internship['title'];
-                return appliedInternshipTitles.contains(title);
-              }).toList();
+                final appliedInternshipTitles = appliedInternships.map((doc) => doc['internshipTitle']).toSet();
+                final appliedInternshipList = internships.where((internship) {
+                  final title = internship['title'];
+                  return appliedInternshipTitles.contains(title);
+                }).toList();
 
-              final availableInternshipList = internships.where((internship) {
-                final title = internship['title'];
-                return !appliedInternshipTitles.contains(title);
-              }).toList();
+                final availableInternshipList = internships.where((internship) {
+                  final title = internship['title'];
+                  return !appliedInternshipTitles.contains(title);
+                }).toList();
 
-              final acceptedInternshipList = appliedInternshipList.where((internship) {
-                final status = internship['status'];
-                return status == 'accepted';
-              }).toList();
+                final acceptedInternshipList = appliedInternshipList.where((internship) {
+                  final status = internship['status'];
+                  return status == 'accepted';
+                }).toList();
 
-              return ListView(
-                children: [
-                  if (acceptedInternshipList.isNotEmpty) ...[
-                    Padding(
-                      padding: const EdgeInsets.all(15.0),
+                return ListView(
+                  children: [
+                    if (acceptedInternshipList.isNotEmpty) ...[
+                      const Padding(
+                        padding: EdgeInsets.all(15.0),
+                        child: Text(
+                          'Accepted Internships',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      ...acceptedInternshipList.map((internship) => InternshipCard(internship: internship)).toList(),
+                    ],
+                    if (appliedInternshipList.isNotEmpty) ...[
+                      const Padding(
+                        padding: EdgeInsets.all(15.0),
+                        child: Text(
+                          'Applied Internships',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      ...appliedInternshipList.map((internship) => InternshipCard(internship: internship)).toList(),
+                    ],
+                    const Padding(
+                      padding: EdgeInsets.all(15.0),
                       child: Text(
-                        'Accepted Internships',
+                        'Available Internships',
                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                     ),
-                    ...acceptedInternshipList.map((internship) => InternshipCard(internship: internship)).toList(),
+                    ...availableInternshipList.map((internship) => InternshipCard(internship: internship)).toList(),
                   ],
-                  if (appliedInternshipList.isNotEmpty) ...[
-                    Padding(
-                      padding: const EdgeInsets.all(15.0),
-                      child: Text(
-                        'Applied Internships',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    ...appliedInternshipList.map((internship) => InternshipCard(internship: internship)).toList(),
-                  ],
-                  Padding(
-                    padding: const EdgeInsets.all(15.0),
-                    child: Text(
-                      'Available Internships',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  ...availableInternshipList.map((internship) => InternshipCard(internship: internship)).toList(),
-                ],
-              );
-            },
-          );
-        },
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -131,21 +154,21 @@ class InternshipCard extends StatelessWidget {
     final status = internship['status'] ?? 'available'; // Assuming 'status' field exists
 
     return Card(
-      margin: EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+      margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
       child: ListTile(
         title: Text(title),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(description),
-            SizedBox(height: 5),
+            const SizedBox(height: 5),
             Row(
               children: [
                 Chip(
                   label: Text(type),
                   backgroundColor: Colors.blue[100],
                 ),
-                SizedBox(width: 10),
+                const SizedBox(width: 10),
                 Text('Location: $location'),
               ],
             ),

@@ -1,46 +1,70 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 class AttendanceAdminPage extends StatefulWidget {
-  const AttendanceAdminPage({super.key});
-
   @override
   _AttendanceAdminPageState createState() => _AttendanceAdminPageState();
 }
 
 class _AttendanceAdminPageState extends State<AttendanceAdminPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  DateTime _selectedDate = DateTime.now();
+  String _selectedInternshipTitle = 'Domain Connect (GoDaddy)'; // Default or selected internship title
 
-  Future<List<DocumentSnapshot>> _getUsers() async {
-    QuerySnapshot snapshot = await _firestore.collection('users').get();
-    return snapshot.docs;
+  // Use nullable types to avoid LateInitializationError
+  Stream<QuerySnapshot>? _userStream;
+  Stream<QuerySnapshot>? _attendanceStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateStreams();
   }
 
-  void _markAttendance(String userId, bool isPresent) {
-    _firestore.collection('attendance').add({
-      'userId': userId,
-      'date': _selectedDate,
-      'status': isPresent ? 'present' : 'absent',
-      'timestamp': FieldValue.serverTimestamp(),
+  void _updateStreams() {
+    setState(() {
+      _userStream = _firestore
+          .collection('enrolled_users')
+          .where('internshipTitle', isEqualTo: _selectedInternshipTitle)
+          .snapshots();
+
+      _attendanceStream = _firestore
+          .collection('attendance')
+          .where('internshipTitle', isEqualTo: _selectedInternshipTitle)
+          .snapshots();
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Attendance marked')),
-    );
   }
 
-  Future<void> _pickDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2023),
-      lastDate: DateTime(2100),
-    );
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-      });
+  Future<void> _markAttendance(String userId, String status) async {
+    try {
+      final attendanceData = {
+        'userId': userId,
+        'status': status,
+        'internshipTitle': _selectedInternshipTitle,
+        'timestamp': Timestamp.now(),
+      };
+
+      final existingAttendanceQuery = await _firestore
+          .collection('attendance')
+          .where('userId', isEqualTo: userId)
+          .where('internshipTitle', isEqualTo: _selectedInternshipTitle)
+          .get();
+
+      if (existingAttendanceQuery.docs.isNotEmpty) {
+        // Update existing attendance record
+        final existingDocId = existingAttendanceQuery.docs.first.id;
+        await _firestore.collection('attendance').doc(existingDocId).update(attendanceData);
+      } else {
+        // Add new attendance record
+        await _firestore.collection('attendance').add(attendanceData);
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Attendance marked as $status')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error marking attendance: $e')),
+      );
     }
   }
 
@@ -48,52 +72,92 @@ class _AttendanceAdminPageState extends State<AttendanceAdminPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Admin - Mark Attendance'),
+        title: Text('Attendance Management'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {
+                _updateStreams();
+              });
+            },
+          ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            ElevatedButton(
-              onPressed: () => _pickDate(context),
-              child: Text('Select Date: ${_selectedDate.toLocal()}'.split(' ')[0]),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: DropdownButton<String>(
+              value: _selectedInternshipTitle,
+              onChanged: (String? newValue) {
+                setState(() {
+                  _selectedInternshipTitle = newValue!;
+                  _updateStreams();
+                });
+              },
+              items: <String>[
+                'Domain Connect (GoDaddy)',
+                'Hosting',
+                // Add other internship titles here
+              ].map<DropdownMenuItem<String>>((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                );
+              }).toList(),
             ),
-            Expanded(
-              child: FutureBuilder<List<DocumentSnapshot>>(
-                future: _getUsers(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  List<DocumentSnapshot> users = snapshot.data!;
-                  return ListView.builder(
-                    itemCount: users.length,
-                    itemBuilder: (context, index) {
-                      String userId = users[index].id;
-                      String userName = users[index]['name'];
-                      return ListTile(
-                        title: Text(userName),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.check, color: Colors.green),
-                              onPressed: () => _markAttendance(userId, true),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close, color: Colors.red),
-                              onPressed: () => _markAttendance(userId, false),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _userStream,
+              builder: (context, userSnapshot) {
+                if (userSnapshot.connectionState == ConnectionState.waiting) {
+                  return Center(child: CircularProgressIndicator());
+                }
+                if (userSnapshot.hasError) {
+                  return Center(child: Text('Error: ${userSnapshot.error}'));
+                }
+
+                final userDocs = userSnapshot.data?.docs ?? [];
+                if (userDocs.isEmpty) {
+                  return Center(child: Text('No users enrolled.'));
+                }
+
+                return ListView.builder(
+                  itemCount: userDocs.length,
+                  itemBuilder: (context, index) {
+                    final userData = userDocs[index].data() as Map<String, dynamic>;
+                    final userId = userData['userId'];
+                    final userName = userData['name'] ?? userData['userName'] ?? 'Unknown';
+
+                    // Debugging output
+                    print('User Data: $userData');
+
+                    return ListTile(
+                      title: Text(userName),
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (status) {
+                          _markAttendance(userId, status);
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'present',
+                            child: Text('Mark as Present'),
+                          ),
+                          PopupMenuItem(
+                            value: 'absent',
+                            child: Text('Mark as Absent'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
