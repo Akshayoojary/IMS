@@ -21,7 +21,6 @@ class _ApplicationsAdminPageState extends State<ApplicationsAdminPage> {
   }
 
   Future<void> _refreshApplications() async {
-    // Refresh the streams to get the latest data
     setState(() {
       _jobApplicationsStream = FirebaseFirestore.instance.collection('job_applications').snapshots();
       _internshipApplicationsStream = FirebaseFirestore.instance.collection('internship_applications').snapshots();
@@ -83,7 +82,6 @@ class _ApplicationsAdminPageState extends State<ApplicationsAdminPage> {
           return Center(child: Text('No $collection applications found.'));
         }
 
-        // Adjusted logic to include 'applied' status as pending
         final pendingApplications = applications.where((doc) => 
           (doc.data() as Map<String, dynamic>)['status'] == 'pending' || 
           (doc.data() as Map<String, dynamic>)['status'] == 'applied' || 
@@ -105,7 +103,7 @@ class _ApplicationsAdminPageState extends State<ApplicationsAdminPage> {
 
   Widget _buildApplicationSection(String title, List<QueryDocumentSnapshot> applications, String collection, String type) {
     if (applications.isEmpty) {
-      return Container(); // If no applications, return empty container
+      return Container();
     }
 
     return Column(
@@ -139,8 +137,8 @@ class _ApplicationsAdminPageState extends State<ApplicationsAdminPage> {
                   children: [
                     Text(description),
                     Text('Applicant: $applicantName'),
-                    Text('Date: ${applicationDate.toLocal()}'.split(' ')[0]), // Displaying date part only
-                    Text('Status: ${status[0].toUpperCase() + status.substring(1)}'), // Capitalize status
+                    Text('Date: ${applicationDate.toLocal()}'.split(' ')[0]),
+                    Text('Status: ${status[0].toUpperCase() + status.substring(1)}'),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -166,6 +164,10 @@ class _ApplicationsAdminPageState extends State<ApplicationsAdminPage> {
                             child: const Text('Reject', style: TextStyle(color: Colors.red)),
                           ),
                         ],
+                        TextButton(
+                          onPressed: () => _deleteApplication(applicationId, collection),
+                          child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                        ),
                       ],
                     ),
                   ],
@@ -179,12 +181,44 @@ class _ApplicationsAdminPageState extends State<ApplicationsAdminPage> {
   }
 
   Future<void> _updateApplicationStatus(String docId, String collection, String status, String applicantEmail) async {
-    // Update the application status in Firestore
     await FirebaseFirestore.instance.collection(collection).doc(docId).update({'status': status});
-
-    // Notify user (This can be replaced with a notification system if needed)
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Application $status successfully.')),
     );
+  }
+
+  Future<void> _deleteApplication(String docId, String collection) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Deletion'),
+          content: const Text('Are you sure you want to delete this application? This action cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            TextButton(
+              child: const Text('Delete'),
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      try {
+        await FirebaseFirestore.instance.collection(collection).doc(docId).delete();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Application deleted successfully.')),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting application: $e')),
+        );
+      }
+    }
   }
 }
